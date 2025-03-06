@@ -77,6 +77,7 @@
             pkgs.makeWrapper
             pkgs.glib
             pkgs.gtk3
+            pkgs.gobject-introspection
           ];
           
           installPhase = ''
