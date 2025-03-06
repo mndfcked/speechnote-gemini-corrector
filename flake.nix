@@ -26,27 +26,33 @@
             buildPythonPackage rec {
               pname = "google-genai";
               version = "1.4.0";
-              format = "pyproject";
-              
-              src = fetchPypi {
-                inherit pname version;
-                sha256 = "sha256-aVn23g67PW3Qge6ZI0lFoozdoWVRrISy29k4uvBKTBQ="; 
+              pyproject = true;
+
+              src = pkgs.fetchFromGitHub {
+                owner = "googleapis";
+                repo = "python-genai";
+                tag = "v${version}";
+                hash = "sha256-aVn23g67PW3Qge6ZI0lFoozdoWVRrISy29k4uvBKTBQ=";
               };
-              
-              propagatedBuildInputs = [
-                setuptools
-                wheel
-                pip
-                # Dependencies required by google-genai
-                requests
+
+              build-system = [ setuptools ];
+
+              dependencies = [
                 google-auth
                 httpx
                 pydantic
-                websockets
+                requests
                 typing-extensions
+                websockets
               ];
-              
-              # Skip tests as they might require credentials
+
+              pythonImportsCheck = [ "google.genai" ];
+
+              nativeCheckInputs = [
+                pytestCheckHook
+              ];
+
+              # ValueError: GOOGLE_GENAI_REPLAYS_DIRECTORY environment variable is not set
               doCheck = false;
             }
           )
