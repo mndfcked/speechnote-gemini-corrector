@@ -15,6 +15,12 @@
       let
         pkgs = nixpkgs.legacyPackages.${system};
         
+        # Define GI Typelib paths
+        giTypeLibPath = pkgs.lib.makeSearchPath "lib/girepository-1.0" [
+          pkgs.glib
+          pkgs.gtk3  # May be needed for notifications
+        ];
+        
         # Create a Python environment with all dependencies
         pythonEnv = pkgs.python3.withPackages (ps: with ps; [
           dbus-python
@@ -69,6 +75,8 @@
           buildInputs = [
             pythonEnv
             pkgs.makeWrapper
+            pkgs.glib
+            pkgs.gtk3
           ];
           
           installPhase = ''
@@ -79,10 +87,9 @@
             makeWrapper ${pythonEnv}/bin/python $out/bin/speechnote-gemini-corrector \
               --add-flags $out/share/speechnote-gemini-corrector/gemini-corrector.py \
               --prefix PATH : ${pkgs.lib.makeBinPath [ pkgs.wl-clipboard ]} \
+              --prefix GI_TYPELIB_PATH : "${giTypeLibPath}" \
+              --prefix LD_LIBRARY_PATH : "${pkgs.lib.makeLibraryPath [ pkgs.glib pkgs.gtk3 ]}" \
               --set PYTHONPATH ${pythonEnv}/${pythonEnv.sitePackages}
-            
-            # Make the wrapper executable
-            chmod +x $out/bin/speechnote-gemini-corrector
           '';
         };
         
@@ -90,7 +97,14 @@
           buildInputs = with pkgs; [
             pythonEnv
             wl-clipboard
+            glib
+            gtk3
           ];
+          
+          shellHook = ''
+            export GI_TYPELIB_PATH="${giTypeLibPath}"
+            export LD_LIBRARY_PATH="${pkgs.lib.makeLibraryPath [ pkgs.glib pkgs.gtk3 ]}"
+          '';
         };
       }
     ) // {
