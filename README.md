@@ -34,7 +34,47 @@ To use this module, you need a Google Gemini API key:
 4. Create a new API key
 5. Save this key to a secure file (e.g., `~/.config/gemini-api-key`)
 
-### 2. Add the Module to Your Home Manager Configuration
+### 2. Add the Module to Your Configuration
+
+#### Option A: Using Flakes (Recommended)
+
+Add the following to your `flake.nix`:
+
+```nix
+{
+  inputs = {
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+    home-manager.url = "github:nix-community/home-manager";
+    speechnote-gemini-corrector.url = "github:mndfcked/speechnote-gemini-corrector";
+  };
+
+  outputs = { self, nixpkgs, home-manager, speechnote-gemini-corrector, ... }: {
+    # Your existing outputs...
+    
+    homeConfigurations = {
+      "your-username" = home-manager.lib.homeManagerConfiguration {
+        # Your existing configuration...
+        
+        modules = [
+          # Your existing modules...
+          
+          speechnote-gemini-corrector.homeManagerModules.default
+          
+          {
+            services.speechnote-gemini-corrector = {
+              enable = true;
+              apiKeyFile = "/path/to/your/gemini-api-key";
+              geminiModel = "gemini-2.0-flash-lite"; # Optional, this is the default
+            };
+          }
+        ];
+      };
+    };
+  };
+}
+```
+
+#### Option B: Using fetchGit (Legacy Approach)
 
 Add the following to your `home.nix` or equivalent configuration:
 
@@ -44,7 +84,7 @@ Add the following to your `home.nix` or equivalent configuration:
 {
   imports = [
     (fetchGit {
-      url = "https://github.com/mndfcked/speechnote-gemini-corrector";
+      url = "github:mndfcked/speechnote-gemini-corrector";
       ref = "main";
     })
   ];
@@ -59,9 +99,21 @@ Add the following to your `home.nix` or equivalent configuration:
 
 ### 3. Apply Your Configuration
 
+#### When using flakes (Option A):
+
 Run:
 
+```bash
+# First-time setup (after cloning the repo)
+nix flake update  # Creates the flake.lock file
+home-manager switch --flake .#your-username
 ```
+
+#### When using the legacy approach (Option B):
+
+Run:
+
+```bash
 home-manager switch
 ```
 
