@@ -54,7 +54,7 @@ in
       python3Packages.dbus-python
       python3Packages.pygobject3
       python3Packages.notify2
-      python3Packages.google-generativeai
+      python3Packages.google-genai
     ];
   };
 }
