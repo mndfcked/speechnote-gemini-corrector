@@ -34,7 +34,7 @@ in
 
       Service = {
         Type = "simple";
-        ExecStart = "${pkgs.python3}/bin/python ${self.packages.${pkgs.system}.speechnote-gemini-corrector}/share/speechnote-gemini-corrector/gemini-corrector.py";
+        ExecStart = "${self.packages.${pkgs.system}.speechnote-gemini-corrector}/bin/speechnote-gemini-corrector";
         Restart = "on-failure";
         Environment = [
           "GEMINI_API_KEY_FILE=${cfg.apiKeyFile}"
@@ -47,13 +47,9 @@ in
       };
     };
 
-    home.packages = with pkgs; [
-      wl-clipboard
-      python3
-      python3Packages.dbus-python
-      python3Packages.pygobject3
-      python3Packages.notify2
-      python3Packages.google-generativeai
+    home.packages = [
+      # Make the corrector script available in PATH
+      self.packages.${pkgs.system}.speechnote-gemini-corrector
     ];
   };
 }

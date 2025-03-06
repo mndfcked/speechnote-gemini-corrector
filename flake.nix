@@ -14,6 +14,43 @@
     flake-utils.lib.eachDefaultSystem (system:
       let
         pkgs = nixpkgs.legacyPackages.${system};
+        
+        # Create a Python environment with all dependencies
+        pythonEnv = pkgs.python3.withPackages (ps: with ps; [
+          dbus-python
+          pygobject3
+          notify2
+          
+          # For dependencies not in nixpkgs, we use pip
+          (
+            buildPythonPackage rec {
+              pname = "google-genai";
+              version = "1.4.0";
+              format = "pyproject";
+              
+              src = fetchPypi {
+                inherit pname version;
+                sha256 = "sha256-aVn23g67PW3Qge6ZI0lFoozdoWVRrISy29k4uvBKTBQ="; 
+              };
+              
+              propagatedBuildInputs = [
+                setuptools
+                wheel
+                pip
+                # Dependencies required by google-genai
+                requests
+                google-auth
+                httpx
+                pydantic
+                websockets
+                typing-extensions
+              ];
+              
+              # Skip tests as they might require credentials
+              doCheck = false;
+            }
+          )
+        ]);
       in
       {
         packages.default = self.packages.${system}.speechnote-gemini-corrector;
@@ -23,19 +60,29 @@
           version = "0.1.0";
           src = ./.;
           
+          buildInputs = [
+            pythonEnv
+            pkgs.makeWrapper
+          ];
+          
           installPhase = ''
-            mkdir -p $out/share/speechnote-gemini-corrector
+            mkdir -p $out/{bin,share/speechnote-gemini-corrector}
             cp gemini-corrector.py $out/share/speechnote-gemini-corrector/
+            
+            # Create a wrapper script that sets up the Python environment
+            makeWrapper ${pythonEnv}/bin/python $out/bin/speechnote-gemini-corrector \
+              --add-flags $out/share/speechnote-gemini-corrector/gemini-corrector.py \
+              --prefix PATH : ${pkgs.lib.makeBinPath [ pkgs.wl-clipboard ]} \
+              --set PYTHONPATH ${pythonEnv}/${pythonEnv.sitePackages}
+            
+            # Make the wrapper executable
+            chmod +x $out/bin/speechnote-gemini-corrector
           '';
         };
         
         devShells.default = pkgs.mkShell {
           buildInputs = with pkgs; [
-            python3
-            python3Packages.dbus-python
-            python3Packages.pygobject3
-            python3Packages.notify2
-            python3Packages.google-generativeai
+            pythonEnv
             wl-clipboard
           ];
         };
