@@ -22,6 +22,12 @@ in
       description = "The Gemini model to use for text correction";
       example = "gemini-2.0-pro";
     };
+
+    debugMode = mkOption {
+      type = types.bool;
+      default = false;
+      description = "Enable debugging mode with environment logging";
+    };
   };
 
   config = mkIf cfg.enable {
@@ -34,11 +40,18 @@ in
 
       Service = {
         Type = "simple";
-        ExecStart = "${self.packages.${pkgs.system}.speechnote-gemini-corrector}/bin/speechnote-gemini-corrector";
+        # Use the debug version when debug mode is enabled
+        ExecStart = if cfg.debugMode 
+          then "${self.packages.${pkgs.system}.speechnote-gemini-corrector}/bin/speechnote-gemini-corrector-debug"
+          else "${self.packages.${pkgs.system}.speechnote-gemini-corrector}/bin/speechnote-gemini-corrector";
         Restart = "on-failure";
+        # Set all environment variables explicitly in the service
         Environment = [
           "GEMINI_API_KEY_FILE=${cfg.apiKeyFile}"
           "GEMINI_MODEL=${cfg.geminiModel}"
+          "GI_TYPELIB_PATH=${pkgs.glib}/lib/girepository-1.0:${pkgs.gtk3}/lib/girepository-1.0:${pkgs.gobject-introspection}/lib/girepository-1.0"
+          "XDG_DATA_DIRS=${pkgs.gtk3}/share"
+          "LD_LIBRARY_PATH=${pkgs.lib.makeLibraryPath [ pkgs.glib pkgs.gtk3 ]}"
         ];
       };
 
@@ -47,9 +60,13 @@ in
       };
     };
 
-    home.packages = [
+    home.packages = with pkgs; [
       # Make the corrector script available in PATH
       self.packages.${pkgs.system}.speechnote-gemini-corrector
+      # Dependencies for GObject Introspection
+      glib
+      gtk3
+      gobject-introspection
     ];
   };
 }

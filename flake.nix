@@ -67,8 +67,8 @@
           src = ./.;
           
           nativeBuildInputs = [
-            pkgs.wrapGAppsHook
             pkgs.makeWrapper
+            pkgs.wrapGAppsHook
           ];
           
           buildInputs = [
@@ -78,21 +78,42 @@
             pkgs.gobject-introspection
           ];
           
-          # This ensures Python's path is properly set up when wrapGAppsHook runs
-          dontWrapGApps = true;
+          # Create a debug wrapper script
+          preInstall = ''
+            mkdir -p $out/libexec
+            cat > $out/libexec/debug-wrapper.sh << 'EOF'
+#!/usr/bin/env bash
+# Log environment for debugging
+env > /tmp/speechnote-gemini-env.log 
+echo "Running with arguments: $@" >> /tmp/speechnote-gemini-debug.log
+exec "$@"
+EOF
+            chmod +x $out/libexec/debug-wrapper.sh
+          '';
           
           installPhase = ''
             mkdir -p $out/{bin,share/speechnote-gemini-corrector}
             cp gemini-corrector.py $out/share/speechnote-gemini-corrector/
             
-            # First, create the basic wrapper with Python path
-            makeWrapper ${pythonEnv}/bin/python $out/bin/speechnote-gemini-corrector \
-              --add-flags "$out/share/speechnote-gemini-corrector/gemini-corrector.py" \
-              --prefix PATH : "${pkgs.lib.makeBinPath [ pkgs.wl-clipboard ]}" \
-              --set PYTHONPATH "${pythonEnv}/${pythonEnv.sitePackages}"
+            # Create a version that explicitly sets all GObject Introspection environment variables
+            cat > $out/bin/speechnote-gemini-corrector << EOF
+#!/usr/bin/env bash
+export GI_TYPELIB_PATH="${pkgs.glib}/lib/girepository-1.0:${pkgs.gtk3}/lib/girepository-1.0:${pkgs.gobject-introspection}/lib/girepository-1.0"
+export XDG_DATA_DIRS="${pkgs.gtk3}/share:\$XDG_DATA_DIRS"
+export LD_LIBRARY_PATH="${pkgs.lib.makeLibraryPath [ pkgs.glib pkgs.gtk3 ]}"
+exec ${pythonEnv}/bin/python ${placeholder "out"}/share/speechnote-gemini-corrector/gemini-corrector.py "\$@"
+EOF
+            chmod +x $out/bin/speechnote-gemini-corrector
             
-            # Then use wrapGAppsHook to set up all GLib/GTK environment variables
-            wrapGApp $out/bin/speechnote-gemini-corrector
+            # For debugging, create a secondary version that uses our debug wrapper
+            cat > $out/bin/speechnote-gemini-corrector-debug << EOF
+#!/usr/bin/env bash
+export GI_TYPELIB_PATH="${pkgs.glib}/lib/girepository-1.0:${pkgs.gtk3}/lib/girepository-1.0:${pkgs.gobject-introspection}/lib/girepository-1.0"
+export XDG_DATA_DIRS="${pkgs.gtk3}/share:\$XDG_DATA_DIRS"
+export LD_LIBRARY_PATH="${pkgs.lib.makeLibraryPath [ pkgs.glib pkgs.gtk3 ]}"
+exec ${placeholder "out"}/libexec/debug-wrapper.sh ${pythonEnv}/bin/python ${placeholder "out"}/share/speechnote-gemini-corrector/gemini-corrector.py "\$@"
+EOF
+            chmod +x $out/bin/speechnote-gemini-corrector-debug
           '';
         };
         
@@ -107,8 +128,9 @@
           
           shellHook = ''
             # Setup a development environment with GObject Introspection support
-            export XDG_DATA_DIRS="$XDG_DATA_DIRS:${pkgs.gtk3}/share"
-            export GI_TYPELIB_PATH="${pkgs.glib}/lib/girepository-1.0:${pkgs.gtk3}/lib/girepository-1.0"
+            export GI_TYPELIB_PATH="${pkgs.glib}/lib/girepository-1.0:${pkgs.gtk3}/lib/girepository-1.0:${pkgs.gobject-introspection}/lib/girepository-1.0"
+            export XDG_DATA_DIRS="${pkgs.gtk3}/share:$XDG_DATA_DIRS"
+            export LD_LIBRARY_PATH="${pkgs.lib.makeLibraryPath [ pkgs.glib pkgs.gtk3 ]}"
             
             echo "Development environment activated with GObject Introspection support"
             echo "Run the script with: python ./gemini-corrector.py"
