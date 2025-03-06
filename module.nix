@@ -4,12 +4,6 @@ with lib;
 
 let
   cfg = config.services.speechnote-gemini-corrector;
-  
-  # Define GI Typelib paths
-  giTypeLibPath = pkgs.lib.makeSearchPath "lib/girepository-1.0" [
-    pkgs.glib
-    pkgs.gtk3  # May be needed for notifications
-  ];
 in
 {
   options.services.speechnote-gemini-corrector = {
@@ -39,16 +33,12 @@ in
       };
 
       Service = {
-        # Note: Using 'simple' type rather than 'dbus' since your script 
-        # listens to D-Bus but isn't a D-Bus service itself
         Type = "simple";
         ExecStart = "${self.packages.${pkgs.system}.speechnote-gemini-corrector}/bin/speechnote-gemini-corrector";
         Restart = "on-failure";
         Environment = [
           "GEMINI_API_KEY_FILE=${cfg.apiKeyFile}"
           "GEMINI_MODEL=${cfg.geminiModel}"
-          "GI_TYPELIB_PATH=${giTypeLibPath}"
-          "LD_LIBRARY_PATH=${pkgs.lib.makeLibraryPath [ pkgs.glib pkgs.gtk3 ]}"
         ];
       };
 
@@ -57,12 +47,9 @@ in
       };
     };
 
-    home.packages = with pkgs; [
+    home.packages = [
       # Make the corrector script available in PATH
       self.packages.${pkgs.system}.speechnote-gemini-corrector
-      # Add needed libraries for GObject Introspection
-      glib
-      gtk3
     ];
   };
 }

@@ -15,12 +15,6 @@
       let
         pkgs = nixpkgs.legacyPackages.${system};
         
-        # Define GI Typelib paths
-        giTypeLibPath = pkgs.lib.makeSearchPath "lib/girepository-1.0" [
-          pkgs.glib
-          pkgs.gtk3  # May be needed for notifications
-        ];
-        
         # Create a Python environment with all dependencies
         pythonEnv = pkgs.python3.withPackages (ps: with ps; [
           dbus-python
@@ -72,39 +66,52 @@
           version = "0.1.0";
           src = ./.;
           
+          nativeBuildInputs = [
+            pkgs.wrapGAppsHook
+            pkgs.makeWrapper
+          ];
+          
           buildInputs = [
             pythonEnv
-            pkgs.makeWrapper
             pkgs.glib
             pkgs.gtk3
             pkgs.gobject-introspection
           ];
           
+          # This ensures Python's path is properly set up when wrapGAppsHook runs
+          dontWrapGApps = true;
+          
           installPhase = ''
             mkdir -p $out/{bin,share/speechnote-gemini-corrector}
             cp gemini-corrector.py $out/share/speechnote-gemini-corrector/
             
-            # Create a wrapper script that sets up the Python environment
+            # First, create the basic wrapper with Python path
             makeWrapper ${pythonEnv}/bin/python $out/bin/speechnote-gemini-corrector \
-              --add-flags $out/share/speechnote-gemini-corrector/gemini-corrector.py \
-              --prefix PATH : ${pkgs.lib.makeBinPath [ pkgs.wl-clipboard ]} \
-              --prefix GI_TYPELIB_PATH : "${giTypeLibPath}" \
-              --prefix LD_LIBRARY_PATH : "${pkgs.lib.makeLibraryPath [ pkgs.glib pkgs.gtk3 ]}" \
-              --set PYTHONPATH ${pythonEnv}/${pythonEnv.sitePackages}
+              --add-flags "$out/share/speechnote-gemini-corrector/gemini-corrector.py" \
+              --prefix PATH : "${pkgs.lib.makeBinPath [ pkgs.wl-clipboard ]}" \
+              --set PYTHONPATH "${pythonEnv}/${pythonEnv.sitePackages}"
+            
+            # Then use wrapGAppsHook to set up all GLib/GTK environment variables
+            wrapGApp $out/bin/speechnote-gemini-corrector
           '';
         };
         
         devShells.default = pkgs.mkShell {
-          buildInputs = with pkgs; [
+          packages = with pkgs; [
             pythonEnv
             wl-clipboard
             glib
             gtk3
+            gobject-introspection
           ];
           
           shellHook = ''
-            export GI_TYPELIB_PATH="${giTypeLibPath}"
-            export LD_LIBRARY_PATH="${pkgs.lib.makeLibraryPath [ pkgs.glib pkgs.gtk3 ]}"
+            # Setup a development environment with GObject Introspection support
+            export XDG_DATA_DIRS="$XDG_DATA_DIRS:${pkgs.gtk3}/share"
+            export GI_TYPELIB_PATH="${pkgs.glib}/lib/girepository-1.0:${pkgs.gtk3}/lib/girepository-1.0"
+            
+            echo "Development environment activated with GObject Introspection support"
+            echo "Run the script with: python ./gemini-corrector.py"
           '';
         };
       }
